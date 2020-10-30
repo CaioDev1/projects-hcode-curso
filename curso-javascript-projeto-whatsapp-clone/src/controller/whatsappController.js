@@ -2,10 +2,13 @@ import Format from '../utils/format'
 import CameraController from './cameraController'
 import MicrophoneController from './microphoneController'
 import DocumentPreviewController from './documentPreviewController'
+import ContactController from './contactController'
+
 import Firebase from '../utils/firebase'
 import User from '../model/user'
 import Chat from '../model/chat'
 import Messages from '../model/messages'
+import Base64 from '../utils/base64'
 
 export default class WhatsappController {
     constructor() {
@@ -155,9 +158,17 @@ export default class WhatsappController {
             display: 'flex'
         })
 
+        this.el.panelMessagesContainer.innerHTML = ''
+
         Messages.getRef(this._contactActive.chatId).orderBy('timeStamp')
             .onSnapshot(docs => {
-                this.el.panelMessagesContainer.innerHTML = ''
+                let scrollTop = this.el.panelMessagesContainer.scrollTop
+
+                let scrollTopMax = 
+                this.el.panelMessagesContainer.scrollHeight -
+                this.el.panelMessagesContainer.offsetHeight
+
+                let autoScroll = scrollTop >= scrollTopMax
                 
                 docs.forEach(doc => {
                     let data = doc.data()
@@ -167,13 +178,40 @@ export default class WhatsappController {
 
                     message.fromJSON(data)
 
+                    let me = data.from == this._user.email
+
                     if(!this.el.panelMessagesContainer.querySelector('#_' + data.id)) {
-                        let me = data.from == this._user.email
+                        if(!me) {
+                            doc.ref.set({
+                                status: 'read'
+                            }, {
+                                merge: true
+                            })
+                        }
+
                         let view = message.getViewElement(me)
     
                         this.el.panelMessagesContainer.appendChild(view)
+                    } else {
+                        let view = message.getViewElement(me)
+
+                        this.el.panelMessagesContainer.querySelector('#_' + data.id).innerHTML = view.innerHTML
+                    }
+                    
+                    if(!this.el.panelMessagesContainer.querySelector('#_' + data.id) && me) {
+                        let msgEl = this.el.panelMessagesContainer.querySelector('#_' + data.id)
+
+                        msgEl.querySelector('.message-status').innerHTML = message.getStatusViewElement().outerHTML
                     }
                 })
+
+                if(autoScroll) {
+                    this.el.panelMessagesContainer.scrollTop = 
+                    this.el.panelMessagesContainer.scrollHeight -
+                    this.el.panelMessagesContainer.offsetHeight
+                } else {
+                    this.el.panelMessagesContainer.scrollTop = scrollTop
+                }
             })
     }
 
@@ -255,6 +293,16 @@ export default class WhatsappController {
     }
 
     initEvents() {
+        this.el.inputSearchContacts.on('keyup', () => {
+            if(this.el.inputSearchContacts.value.length > 0) {
+                this.el.inputSearchContactsPlaceholder.hide()
+            } else {
+                this.el.inputSearchContactsPlaceholder.show()
+            }
+
+            this._user.getContacts(this.el.inputSearchContacts.value)
+        })
+
         this.el.myPhoto.on('click', () => {
             this.closeAllLeftPanel()
             this.el.panelEditProfile.show()
@@ -339,7 +387,7 @@ export default class WhatsappController {
         this.el.btnAttach.on('click', e => {
             e.stopPropagation() // impede de propagar o evento para os elementos pais ou filhos 
             this.el.menuAttach.addClass('open')
-            document.addEventListener('click', this.closeMenuAttach.bind(this)) // TRANSFORMA O ESCOPO DA FUÇÃO CLOSEMENUATTACH PRA A CLASSE WPPCONTROLLER INVÉS DO DOCUMENT (QUE SERIA O PADRÃO)
+            document.addEventListener('click', this.closeMenuAttach.bind(this)) // TRANSFORMA O ESCOPO DA FUNÇÃO CLOSEMENUATTACH PRA A CLASSE WPPCONTROLLER INVÉS DO DOCUMENT (QUE SERIA O PADRÃO)
         })
 
         this.el.btnAttachPhoto.on('click', () => {
@@ -348,7 +396,7 @@ export default class WhatsappController {
 
         this.el.inputPhoto.on('change', e => {
             [...this.el.inputPhoto.files].forEach(file => {
-
+                Messages.sendImage(this._contactActive.chatId, this._user.email, file)
             })
         })
 
@@ -389,7 +437,66 @@ export default class WhatsappController {
         })
 
         this.el.btnSendPicture.on('click', e => {
-            this.el.pictureCamera.src
+            this.el.btnSendPicture.disabled = true
+
+            /* 
+            .	Find a single character, except newline or line terminator
+            n+	Matches any string that contains at least one n
+            n*	Matches any string that contains zero or more occurrences of n
+            ^n	Matches any string with n at the beginning of it
+            n$	Matches any string with n at the end of it
+
+            ^   por exemplo [^a-z] que aceita tudo que não seja entre a à z.
+            *   zero ou mais ocorrências;
+            +   uma ou mais ocorrências;
+            .   ele funciona como um coringa, sendo capaz de dar match em qualquer caractere
+            */
+
+            let regex = /^data:(.+);base64,(.*)$/
+
+            let result =  this.el.pictureCamera.src.match(regex)
+
+            let mimeType = result[1]
+
+            let ext = mimeType.split('/')[1]
+
+            let filename = `camera${Date.now()}.${ext}`
+
+            let picture = new Image()
+            picture.src =  this.el.pictureCamera.src
+
+            picture.onload = () => {
+                let canvas = document.createElement('canvas')
+                let context = canvas.getContext('2d')
+
+                canvas.width = picture.width
+                canvas.height = picture.height
+
+                context.translate(picture.width, 0)
+                context.scale(-1, 1)
+
+                context.drawImage(picture, 0, 0, canvas.width, canvas.height)
+
+                fetch(canvas.toDataURL(mimeType))
+                    .then(res => {
+                        return res.arrayBuffer()
+                    }).then(buffer => {
+                        return new File([buffer], filename, {type: mimeType})
+                    }).then(file => {
+                        Messages.sendImage(this._contactActive.chatId, this._user.email, file)
+
+                        this.el.btnSendPicture.disabled = false
+
+                        this.closeAllMainPanel()
+                        this._camera.stop()
+                        this.el.btnReshootPanelCamera.hide()
+                        this.el.pictureCamera.hide()
+                        this.el.videoCamera.show()
+                        this.el.containerSendPicture.hide()
+                        this.el.containerTakePicture.show()
+                        this.el.panelMessagesContainer.show()
+                    })
+            }
         })
 
         this.el.btnAttachDocument.on('click', () => {
@@ -440,15 +547,32 @@ export default class WhatsappController {
         })
 
         this.el.btnSendDocument.on('click', () => {
+            let file = this.el.inputDocument.files[0]
+            let base64 = this.el.imgPanelDocumentPreview.src
 
+            if(file.type == 'application/pdf') {
+                Base64.toFile(base64).then(filePreview => {
+                    Messages.sendDocument(this._contactActive.chatId, this._user.email, file, filePreview, this.el.infoPanelDocumentPreview.innerHTML)
+                })
+            } else {
+                Messages.sendDocument(this._contactActive.chatId, this._user.email, file)
+            }
+
+            this.el.btnClosePanelDocumentPreview.click()
         })
 
         this.el.btnAttachContact.on('click', () => {
-            this.el.modalContacts.show()
+            this._contactController = new ContactController(this.el.modalContacts, this._user)
+
+            this._contactController.on('select', contact => {
+                Messages.sendContact(this._contactActive.chatId, this._user.email, contact)
+            })
+
+            this._contactController.open()
         })
 
         this.el.btnCloseModalContacts.on('click', () => {
-            this.el.modalContacts.hide()
+            this._contactController.close()
         })
 
         this.el.btnSendMicrophone.on('click', () => {
