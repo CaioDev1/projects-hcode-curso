@@ -138,6 +138,7 @@ export default class WhatsappController {
     }
 
     setActiveChat(contact) {
+        console.log(contact)
         if(this._contactActive) {
             Messages.getRef(this._contactActive.chatId).onSnapshot(() => {})
         }
@@ -174,11 +175,15 @@ export default class WhatsappController {
                     let data = doc.data()
                     data.id = doc.id
 
+                    console.log(data)
+
                     let message = new Messages()
 
                     message.fromJSON(data)
 
                     let me = data.from == this._user.email
+
+                    let view = message.getViewElement(me)
 
                     if(!this.el.panelMessagesContainer.querySelector('#_' + data.id)) {
                         if(!me) {
@@ -188,20 +193,39 @@ export default class WhatsappController {
                                 merge: true
                             })
                         }
-
-                        let view = message.getViewElement(me)
     
                         this.el.panelMessagesContainer.appendChild(view)
                     } else {
-                        let view = message.getViewElement(me)
+                        let parent = this.el.panelMessagesContainer.querySelector('#_' + data.id).parentNode
 
-                        this.el.panelMessagesContainer.querySelector('#_' + data.id).innerHTML = view.innerHTML
+                        parent.replaceChild(view, this.el.panelMessagesContainer.querySelector('#_' + data.id))          
                     }
-                    
                     if(!this.el.panelMessagesContainer.querySelector('#_' + data.id) && me) {
                         let msgEl = this.el.panelMessagesContainer.querySelector('#_' + data.id)
 
                         msgEl.querySelector('.message-status').innerHTML = message.getStatusViewElement().outerHTML
+                    }
+
+                    if(message.type == 'contact') {
+                        view.querySelector('.btn-message-send').on('click', e => {
+                            console.log(this._user.email, message.content.email)
+                            Chat.createIfNotExists(this._user.email, message.content.email).then(chat => {
+                                console.log(chat)
+                                let contact = new User(message.content.email)
+
+                                contact.on('datachange', data => {
+                                    contact.chatId = chat.id
+
+                                    this._user.chatId = chat.id
+
+                                    this._user.addContact(contact)
+            
+                                    contact.addContact(this._user)
+                                    
+                                    this.setActiveChat(contact)
+                                })
+                            }) 
+                        })
                     }
                 })
 
@@ -562,7 +586,7 @@ export default class WhatsappController {
         })
 
         this.el.btnAttachContact.on('click', () => {
-            this._contactController = new ContactController(this.el.modalContacts, this._user)
+            this._contactController = new ContactController(this.el.modalContacts, this._user, this._contactActive)
 
             this._contactController.on('select', contact => {
                 Messages.sendContact(this._contactActive.chatId, this._user.email, contact)
@@ -596,6 +620,10 @@ export default class WhatsappController {
         })
 
         this.el.btnFinishMicrophone.on('click', () => {
+            this._microphoneController.on('recorded', (file, metadata) => {
+                Messages.sendAudio(this._contactActive.chatId, this._user.email, file, metadata, this._user.photo)
+            })
+
             this.closeRecordMicrophone()
             this._microphoneController.stopRecording()
         })
