@@ -33,7 +33,7 @@ export default class WhatsappController {
             }
 
             this.el.alertNotificationPermission.on('click', e => {
-                Notification.requestPermission(permission => {
+                Notification.requestPermission().then(permission => {
                     if(permission == 'granted') {
                         this.el.alertNotificationPermission.hide()
                     }
@@ -177,7 +177,6 @@ export default class WhatsappController {
     }
 
     setActiveChat(contact) {
-        console.log(contact)
         if(this._contactActive) {
             Messages.getRef(this._contactActive.chatId).onSnapshot(() => {})
         }

@@ -45,7 +45,6 @@ export default class Chat extends Model {
     static createIfNotExists(myEmail, contactEmail) {
         return new Promise((resolve, reject) => {
             Chat.find(myEmail, contactEmail).then(chats => {
-                console.log(chats)
                 if(chats.empty) {
                     Chat.create(myEmail, contactEmail).then(chat => {
                         resolve(chat)
