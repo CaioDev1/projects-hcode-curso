@@ -1,6 +1,7 @@
 import Firebase from '../utils/firebase'
 import Model from './model'
 import Format from '../utils/format'
+import Upload from '../utils/upload'
 
 export default class Messages extends Model {
     constructor() {
@@ -148,7 +149,6 @@ export default class Messages extends Model {
                     div.querySelector('._3v3PK').css({
                         height: 'auto'
                     })
-
                 })
 
                 break
@@ -304,7 +304,7 @@ export default class Messages extends Model {
 
                 audioEl.onpause = () => {
                    audioDuration.innerHTML = Format.toTime(this.duration * 1000)
-
+ 
                     btnPlay.show()
                     btnPause.hide()
                 }
@@ -337,8 +337,6 @@ export default class Messages extends Model {
 
                 inputRange.on('change', e => {
                     audioEl.currentTime = (inputRange.value + this.duration) / 100
-
-
                 })
 
                 break
@@ -397,18 +395,7 @@ export default class Messages extends Model {
     }
 
     static uploadToStorage(file, date, from) {
-        return new Promise((resolve, reject) => {
-            let uploadTask = Firebase.hd().ref(from).child(date + '_' + file.name).put(file)
-
-            uploadTask.on('state_changed', () => {}, err => {
-                console.error(err)
-                reject(err)
-            }, () => {
-                Firebase.hd().ref(from).child(date + '_' + file.name).getDownloadURL().then(url => {
-                    resolve(url)
-                })
-            })  
-        })
+        Upload.send(file, date, from)
     }
 
     static sendImage(chatId, from, file) {

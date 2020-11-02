@@ -9,15 +9,54 @@ import User from '../model/user'
 import Chat from '../model/chat'
 import Messages from '../model/messages'
 import Base64 from '../utils/base64'
+import Upload from '../utils/upload'
 
 export default class WhatsappController {
     constructor() {
         this._firebase = new Firebase()
         this.initAuth()
 
+        this._active = true
+
         this.elementsPrototype()
         this.loadElements()
         this.initEvents()
+        this.checkNotification()
+    }
+
+    checkNotification() {
+        if(typeof Notification == 'function') {
+            if(Notification.permission !== 'granted') {
+                this.el.alertNotificationPermission.show()
+            } else {
+                this.el.alertNotificationPermission.hide()
+            }
+
+            this.el.alertNotificationPermission.on('click', e => {
+                Notification.requestPermission(permission => {
+                    if(permission == 'granted') {
+                        this.el.alertNotificationPermission.hide()
+                    }
+                })
+            })
+        }
+    }
+
+    notification(data) {
+        if(Notification.permission == 'granted' && !this._active) {
+            let n = new Notification(this._contactActive.name, {
+                icon: this._contactActive.photo,
+                body: data.content
+            })
+
+            let sound = new Audio('./audio/alert.mp3')
+            sound.currentTime = 0
+            sound.play()
+
+            setTimeout(() => {
+                if(n) n.close()
+            }, 3000)
+        }
     }
 
     initAuth() {
@@ -92,7 +131,7 @@ export default class WhatsappController {
                                 <span dir="auto" title="${contact.name}" class="_1wjpf">${contact.name}</span>
                             </div>
                             <div class="_3Bxar">
-                                <span class="_3T2VG">${contact.lastMessageTime}</span>
+                                <span class="_3T2VG">${Format.timeStampToTime(contact.lastMessageTime)}</span>
                             </div>
                         </div>
                         <div class="_1AwDx">
@@ -161,6 +200,8 @@ export default class WhatsappController {
 
         this.el.panelMessagesContainer.innerHTML = ''
 
+        this._messagesReceived = []
+
         Messages.getRef(this._contactActive.chatId).orderBy('timeStamp')
             .onSnapshot(docs => {
                 let scrollTop = this.el.panelMessagesContainer.scrollTop
@@ -175,13 +216,16 @@ export default class WhatsappController {
                     let data = doc.data()
                     data.id = doc.id
 
-                    console.log(data)
-
                     let message = new Messages()
 
                     message.fromJSON(data)
 
                     let me = data.from == this._user.email
+
+                    if(!me && this._messagesReceived.filter(id => { return (id == data.id)}).length == 0) {
+                        this.notification(data)
+                        this._messagesReceived.push(data.id)
+                    }
 
                     let view = message.getViewElement(me)
 
@@ -208,9 +252,7 @@ export default class WhatsappController {
 
                     if(message.type == 'contact') {
                         view.querySelector('.btn-message-send').on('click', e => {
-                            console.log(this._user.email, message.content.email)
                             Chat.createIfNotExists(this._user.email, message.content.email).then(chat => {
-                                console.log(chat)
                                 let contact = new User(message.content.email)
 
                                 contact.on('datachange', data => {
@@ -317,6 +359,14 @@ export default class WhatsappController {
     }
 
     initEvents() {
+        window.addEventListener('focus', e => {
+            this._active = true
+        })
+
+        window.addEventListener('blur', e => {
+            this._active = false
+        })
+
         this.el.inputSearchContacts.on('keyup', () => {
             if(this.el.inputSearchContacts.value.length > 0) {
                 this.el.inputSearchContactsPlaceholder.hide()
@@ -353,6 +403,19 @@ export default class WhatsappController {
 
         this.el.photoContainerEditProfile.on('click', () => {
             this.el.inputProfilePhoto.click()
+        })
+
+        this.el.inputProfilePhoto.on('change', () => {
+            if(this.el.inputProfilePhoto.files.length > 0) {
+                let file = this.el.inputProfilePhoto.files[0]
+
+                Upload.send(file, Date.now(), this._user.email).then(snapshot => {
+                    this._user.photo = snapshot
+                    this._user.save().then(() => {
+                        this.el.btnClosePanelEditProfile.click()
+                    })
+                })
+            }
         })
 
         this.el.inputNamePanelEditProfile.on('keydown', e => {
