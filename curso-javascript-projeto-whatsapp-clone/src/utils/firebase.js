@@ -51,6 +51,7 @@ export default class Firebase {
                 })
                 .catch(err => {
                     console.log(err)
+                    reject(err)
                 }) 
         })
     }
