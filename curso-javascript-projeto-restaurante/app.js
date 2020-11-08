@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var session = require('express-session')
+var redis = require('redis')
 var RedisStore = require('connect-redis')(session)
 
 var indexRouter = require('./routes/index');
@@ -17,6 +18,7 @@ app.set('view engine', 'ejs');
 
 app.use(session({
   store: new RedisStore({
+    client: redis.createClient(),
     host: 'localhost',
     port: 6379
   }),

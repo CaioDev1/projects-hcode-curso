@@ -22,7 +22,6 @@ router.get('/contacts', (req, res, next) => {
 })
 
 router.post('/contacts', (req, res, next) => {
-  console.log(req.body)
   if(!req.body.name) {
     contacts.render(req, res, 'Digite o nome')
   } else if(!req.body.email) {
