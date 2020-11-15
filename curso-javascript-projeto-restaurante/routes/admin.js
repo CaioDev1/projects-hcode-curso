@@ -4,6 +4,11 @@ const router = express.Router()
 const users = require('../inc/users')
 const admin = require('../inc/admin')
 const menus = require('../inc/menus')
+const reservations = require('../inc/reservations')
+
+const moment = require('moment')
+
+moment.locale('pt-BR')
 
 router.use(function(req, res, next) {
     if(['/login'].indexOf(req.url) == -1 && !req.session.user) {
@@ -76,14 +81,82 @@ router.get('/menus', (req, res, next) => {
     })
 })
 
+router.post('/menus', (req, res, next) => {
+    menus.save(req.fields, req.files).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
+})
+
+router.delete('/menus/:id', (req, res, next) => {
+    menus.delete(req.params.id).then(result => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
+})
+
 router.get('/reservations', (req, res, next) => {
-    res.render('admin/reservations', admin.getParams(req, {
-        date: {}
-    }))
+    reservations.getReservations().then(results => {
+        res.render('admin/reservations', admin.getParams(req, {
+            date: {},
+            data: results,
+            moment
+        }))
+    })
+})
+
+router.post('/reservations', (req, res, next) => {
+    reservations.save(req.fields).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
+})
+
+router.delete('/reservations/:id', (req, res, next) => {
+    reservations.delete(req.params.id).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
 })
 
 router.get('/users', (req, res, next) => {
-    res.render('admin/users', admin.getParams(req))
+    users.getUsers().then(results => {
+        res.render('admin/users', admin.getParams(req, {
+            data: results
+        }))
+    }).catch(err => {
+        console.log(err)
+    })
+})
+
+router.post('/users', (req, res, next) => {
+    users.save(req.fields).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
+})
+
+router.delete('/users/:id', (req, res, next) => {
+    users.delete(req.params.id).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send(err)
+    })
+})
+
+router.post('/users/password-change', (req, res, next) => {
+    users.changePassword(req).then(results => {
+        res.send(results)
+    }).catch(err => {
+        res.send({
+            error: err
+        })
+    })
 })
 
 module.exports = router

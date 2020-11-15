@@ -43,9 +43,12 @@
                     <td><%= row.description %></td>
                     <td><%= row.price %></td>
                     <td>
-                      <button type="button" class="btn btn-xs btn-info btn-update" data-toggle="modal" data-target="#modal-update"><i
-                          class="fa fa-pencil"></i> Editar</button>&nbsp;<button type="button" class="btn btn-xs btn-danger btn-delete"><i
-                          class="fa fa-trash"></i> Excluir</button>
+                      <button type="button" class="btn btn-xs btn-info btn-update">
+                        <i class="fa fa-pencil"></i> Editar
+                      </button>&nbsp;
+                        <button type="button" class="btn btn-xs btn-danger btn-delete">
+                          <i class="fa fa-trash"></i> Excluir
+                        </button>
                     </td>
                   </tr>
                 <% }) %>
@@ -142,3 +145,27 @@
     </div>
 
 <%- include('inc/footer') -%>
+
+<script src="/js/hcode-file-reader.js"></script>
+<script src="/js/hcode-form-save.js"></script>
+<script src="/js/hcode-grid.js"></script>
+<script>
+  new HcodeFileReader('#modal-create [type=file]', '#modal-create img')
+  new HcodeFileReader('#modal-update [type=file]', '#modal-update img')
+
+  new HcodeGrid({
+    deleteUrl: '/admin/menus/${data.id}',
+    deleteMsg: 'Deseja realmente excluir o menu   ${data.name}?',
+    onUpdateLoad: (formUpdate, name, data) => {
+      let input = formUpdate.querySelector(`[name=${name}]`)
+      
+      switch(name) {
+        case 'photo':
+          formUpdate.querySelector('img').src = '/' + data[name]
+          break
+        default:
+          if(input) input.value = data[name]
+      } 
+    }
+  });
+</script>
