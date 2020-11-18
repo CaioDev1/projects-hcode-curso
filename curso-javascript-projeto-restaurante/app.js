@@ -8,17 +8,30 @@ var redis = require('redis')
 var RedisStore = require('connect-redis')(session)
 var path = require('path')
 var formidable = require('formidable')
-
-var indexRouter = require('./routes/index');
-var adminRouter = require('./routes/admin');
+var http = require('http')
+var socket = require('socket.io')
 
 var app = express();
+
+http = http.Server(app)
+var io = socket(http)
+
+io.on('connection', socket => {
+  // socket = apenas para o usuário que foi conectado nessa sessão
+  // io = para todos os usuários conectados
+  console.log('usuário conectado')
+})
+
+var indexRouter = require('./routes/index')(io);
+var adminRouter = require('./routes/admin')(io);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
 app.use(function(req, res, next) {
+  req.body = {}
+  
   if(req.method == 'POST'/*  && req.url !== '/admin/login' */) {
     let form = formidable.IncomingForm({
       uploadDir: path.join(__dirname, '/public/images'),
@@ -53,7 +66,7 @@ app.use(session({
 }))
 
 app.use(logger('dev'));
-app.use(express.json());
+/* app.use(express.json()); */
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -75,5 +88,9 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
+
+http.listen(3000, () => {
+  console.log('Servidor em execução')
+})
 
 module.exports = app;
